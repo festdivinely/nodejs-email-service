@@ -1,0 +1,22 @@
+{
+  "name": "nodejs-email-service",
+  "version": "1.0.0",
+  "description": "the app is an email service",
+  "license": "ISC",
+  "author": "festusdivinely",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "nodemailer": "^7.0.10"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}
