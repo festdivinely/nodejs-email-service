@@ -1,10 +1,12 @@
 import nodemailer from 'nodemailer';
+import { emailVerificationTemplate } from '../email-templates/emailVerification.js';
+import { deviceVerificationTemplate } from '../email-templates/deviceVerification.js';
+import { passwordResetTemplate } from '../email-templates/passwordReset.js';
 
-// Email configuration - MAKE SURE THESE ARE SET IN VERCEL DASHBOARD
+// Email configuration
 const EMAIL_SENDER = process.env.EMAIL_SENDER;
 const EMAIL_PASSWORD = process.env.EMAIL_PASSWORD;
 
-// Create transporter
 const transporter = nodemailer.createTransport({
   host: 'smtp.gmail.com',
   port: 465,
@@ -15,14 +17,29 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+// Template selector
+const getEmailTemplate = (type, data) => {
+  switch (type) {
+    case 'email_verification':
+      return emailVerificationTemplate(data);
+    case 'device_verification':
+      return deviceVerificationTemplate(data);
+    case 'password_reset':
+      return passwordResetTemplate(data);
+    default:
+      throw new Error(`Unknown email type: ${type}`);
+  }
+};
+
+// Main handler
 export default async function handler(req, res) {
-  // Handle CORS
+  // Set CORS headers
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
-  // Handle preflight requests
+  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
@@ -31,7 +48,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({
       success: false,
-      message: 'Method not allowed. Use POST.'
+      message: 'Method not allowed'
     });
   }
 
@@ -46,101 +63,18 @@ export default async function handler(req, res) {
       });
     }
 
-    // Check if email credentials are configured
+    // Validate email configuration
     if (!EMAIL_SENDER || !EMAIL_PASSWORD) {
-      console.error('Email credentials not configured in environment variables');
       return res.status(500).json({
         success: false,
-        message: 'Email service not configured properly'
+        message: 'Email service not configured'
       });
     }
 
-    // Define email templates
-    let emailContent;
-    if (type === 'email_verification') {
-      const { username, verificationLink, token, supportEmail } = data;
-      emailContent = {
-        subject: 'Verify Your Email - Quantum Robots',
-        text: `Welcome to Quantum Robots\n\nTo verify your email, use this token: ${token}\nOr click: ${verificationLink}\n\nThis token expires in 15 minutes.`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #000; color: #00ff41; padding: 20px; text-align: center;">
-              <h1>QUANTUM ROBOTS</h1>
-            </div>
-            <div style="padding: 20px;">
-              <h2>Welcome, ${username}!</h2>
-              <p>To verify your email, use the token below:</p>
-              <div style="text-align: center; margin: 20px 0;">
-                <span style="background: #f0f0f0; padding: 15px; border: 2px solid #00ff41; font-size: 18px; font-weight: bold;">
-                  ${token}
-                </span>
-              </div>
-              <p style="text-align: center;">
-                <a href="${verificationLink}" style="background: #00ff41; color: #000; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                  Verify Email
-                </a>
-              </p>
-              <p>This token expires in <b>15 minutes</b>.</p>
-            </div>
-          </div>
-        `
-      };
-    } else if (type === 'device_verification') {
-      const { username, verificationCode, deviceInfo, ip, country } = data;
-      emailContent = {
-        subject: 'Device Verification - Quantum Robots',
-        text: `Device verification code: ${verificationCode}\n\nDevice: ${deviceInfo}\nIP: ${ip}\nLocation: ${country}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #000; color: #00ff41; padding: 20px; text-align: center;">
-              <h1>QUANTUM ROBOTS</h1>
-            </div>
-            <div style="padding: 20px;">
-              <h2>Device Verification Required</h2>
-              <p>Hello ${username},</p>
-              <p>Use this verification code:</p>
-              <div style="text-align: center; margin: 20px 0;">
-                <span style="background: #000; color: #00ff41; padding: 20px; font-size: 24px; font-weight: bold; letter-spacing: 5px;">
-                  ${verificationCode}
-                </span>
-              </div>
-              <p><strong>This code expires in 10 minutes.</strong></p>
-            </div>
-          </div>
-        `
-      };
-    } else if (type === 'password_reset') {
-      const { username, resetLink, token } = data;
-      emailContent = {
-        subject: 'Password Reset - Quantum Robots',
-        text: `Password reset token: ${token}\nReset link: ${resetLink}`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background: #000; color: #00ff41; padding: 20px; text-align: center;">
-              <h1>QUANTUM ROBOTS</h1>
-            </div>
-            <div style="padding: 20px;">
-              <h2>Password Reset</h2>
-              <p>Hello ${username},</p>
-              <p>Click the link below to reset your password:</p>
-              <p style="text-align: center;">
-                <a href="${resetLink}" style="background: #00ff41; color: #000; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold;">
-                  Reset Password
-                </a>
-              </p>
-              <p><strong>This link expires in 1 hour.</strong></p>
-            </div>
-          </div>
-        `
-      };
-    } else {
-      return res.status(400).json({
-        success: false,
-        message: `Invalid email type: ${type}. Valid types: email_verification, device_verification, password_reset`
-      });
-    }
+    // Get email template
+    const emailContent = getEmailTemplate(type, data);
 
-    // Send the email
+    // Send email
     await transporter.sendMail({
       from: EMAIL_SENDER,
       to: to,
@@ -149,7 +83,7 @@ export default async function handler(req, res) {
       html: emailContent.html,
     });
 
-    console.log(`✅ Email sent to ${to} (type: ${type})`);
+    console.log(`Email sent successfully to ${to}, type: ${type}`);
 
     return res.status(200).json({
       success: true,
@@ -157,11 +91,11 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error('❌ Email sending error:', error);
+    console.error('Email service error:', error);
 
     return res.status(500).json({
       success: false,
-      message: 'Failed to send email: ' + error.message
+      message: error.message || 'Failed to send email'
     });
   }
 }
